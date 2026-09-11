@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+::selection {
+  background-color: #D9A441;
+  color: #101B17;
+}
+
+body {
+  background-image: radial-gradient(circle at 15% -10%, #16241F 0%, #0D1512 55%);
+}
+
+.rule {
+  border-top: 1px solid #2A4139;
+}
+
+.entry-index {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: #5AA69B;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
