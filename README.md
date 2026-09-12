@@ -32,7 +32,7 @@ Instead of a single open-ended chatbot that "does everything," Ledger splits the
 | **1. Ask** | User types a question in plain English, e.g. *"Does buying NIFTY after a 1% fall work better during high-volatility periods?"* |
 | **2. Clarify & Define** | Gemini extracts a structured experiment (instrument, entry, filter, exit, holding period, test period, cost assumption). Every field is tagged **confirmed** (stated by the user) or **assumed** (the model's best guess, shown with its reasoning) — nothing is silently invented. The user can edit or accept any field. |
 | **3. Test** | The confirmed experiment runs against a synthetic, reproducible price series (see *Key Decisions*) using a small deterministic backtest engine. |
-| **4. Learn** | Claude explains the result in plain language, explicitly separating *what the data shows* (facts) from *what we conclude* (interpretation), plus a short list of ways the result could be misleading. |
+| **4. Learn** | Gemini explains the result in plain language, explicitly separating *what the data shows* (facts) from *what we conclude* (interpretation), plus a short list of ways the result could be misleading. |
 | **5. Remember** | Past experiments persist locally in browser storage, so a user can revisit earlier questions — a small nod toward the "remember what it learned" part of the longer-term product vision. |
 
 ## 🏗️ Architecture
