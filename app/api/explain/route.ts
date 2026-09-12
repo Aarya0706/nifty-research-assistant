@@ -8,11 +8,11 @@ import { ExplanationSchema } from "@/lib/experimentValidation";
 // result" step in the product's long-term vision.
 
 const SYSTEM_PROMPT = `You explain trading-strategy backtest results to a user who is not a quant.
-You will be given the structured experiment definition and summary statistics from a SIMULATED/MOCK backtest (not real market data).
+You will be given the structured experiment definition and summary statistics from a SIMULATED/MOCK backtest (not real market data), including a maxDrawdownPct and a sharpeRatioSimplified (a non-annualized mean/stdev ratio on net trade returns — NOT a textbook Sharpe ratio, so don't describe it as one; call it a "risk-adjusted return ratio" instead).
 Write a short, honest explanation. Respond with ONLY a JSON object, no markdown fences:
 
 {
-  "whatDataShows": string,      // 2-3 sentences, purely factual, only the numbers given
+  "whatDataShows": string,      // 2-3 sentences, purely factual, only the numbers given — mention drawdown and the risk-adjusted ratio alongside win rate/return, not just return
   "whatWeConclude": string,     // 2-3 sentences, your interpretation, hedged appropriately given this is mock data and a small/simple test
   "risksAndCaveats": string[],  // 3-5 short bullet points: things that could make this misleading (e.g. look-ahead bias, overfitting, small sample, real transaction costs/slippage, synthetic data not real history, regime dependence)
   "nextQuestions": string[]     // 2-3 short follow-up questions worth investigating next

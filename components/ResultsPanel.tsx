@@ -1,6 +1,7 @@
 "use client";
 
 import { Experiment, BacktestSummary } from "@/lib/experimentSchema";
+import EquityCurve from "./EquityCurve";
 
 export interface Explanation {
   whatDataShows: string;
@@ -68,6 +69,42 @@ export default function ResultsPanel({
           label="Best / worst trade"
           value={`${summary.bestReturnPct.toFixed(1)}% / ${summary.worstReturnPct.toFixed(1)}%`}
         />
+      </div>
+
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-mono text-[10px] uppercase tracking-wide text-paper-300/60">
+            Cumulative strategy return (net of costs)
+          </span>
+          <span
+            className={`font-mono text-xs ${
+              summary.equityCurvePct[summary.equityCurvePct.length - 1] >= 0
+                ? "text-teal-400"
+                : "text-rust-400"
+            }`}
+          >
+            {summary.equityCurvePct[summary.equityCurvePct.length - 1] >= 0 ? "+" : ""}
+            {summary.equityCurvePct[summary.equityCurvePct.length - 1].toFixed(1)}%
+          </span>
+        </div>
+        <div className="border border-ink-600 rounded-md px-3 py-3 bg-ink-800/40">
+          <EquityCurve points={summary.equityCurvePct} />
+        </div>
+        <div className="grid grid-cols-3 gap-3 mt-3">
+          <Stat
+            label="Max drawdown"
+            value={`${summary.maxDrawdownPct.toFixed(1)}%`}
+            accent="text-rust-400"
+          />
+          <Stat
+            label="Risk-adj. return ratio*"
+            value={summary.sharpeRatioSimplified.toFixed(2)}
+          />
+          <Stat label="Trades in curve" value={String(summary.numTrades)} />
+        </div>
+        <p className="text-paper-300/40 text-[11px] font-mono mt-2">
+          *simplified: mean ÷ stdev of net per-trade returns — not an annualized Sharpe ratio.
+        </p>
       </div>
 
       <div className="rule mb-8" />

@@ -64,4 +64,11 @@ export interface BacktestSummary {
   baselineAvgReturnPct: number;
   bestReturnPct: number;
   worstReturnPct: number;
+  /** Cumulative return after each trade, compounded, net of costs. Starts at 0. */
+  equityCurvePct: number[];
+  maxDrawdownPct: number;
+  /** Simplified, non-annualized Sharpe-like ratio: mean(net trade return) / stdev(net trade return).
+   *  Not a textbook annualized Sharpe (that needs a risk-free rate and a fixed period length) —
+   *  labeled "simplified" in the UI for exactly that reason. */
+  sharpeRatioSimplified: number;
 }

@@ -1,0 +1,217 @@
+diff --git a/app/api/explain/route.ts b/app/api/explain/route.ts
+index e713b78..aff05c7 100644
+--- a/app/api/explain/route.ts
++++ b/app/api/explain/route.ts
+@@ -8,11 +8,11 @@ import { ExplanationSchema } from "@/lib/experimentValidation";
+ // result" step in the product's long-term vision.
+ 
+ const SYSTEM_PROMPT = `You explain trading-strategy backtest results to a user who is not a quant.
+-You will be given the structured experiment definition and summary statistics from a SIMULATED/MOCK backtest (not real market data).
++You will be given the structured experiment definition and summary statistics from a SIMULATED/MOCK backtest (not real market data), including a maxDrawdownPct and a sharpeRatioSimplified (a non-annualized mean/stdev ratio on net trade returns — NOT a textbook Sharpe ratio, so don't describe it as one; call it a "risk-adjusted return ratio" instead).
+ Write a short, honest explanation. Respond with ONLY a JSON object, no markdown fences:
+ 
+ {
+-  "whatDataShows": string,      // 2-3 sentences, purely factual, only the numbers given
++  "whatDataShows": string,      // 2-3 sentences, purely factual, only the numbers given — mention drawdown and the risk-adjusted ratio alongside win rate/return, not just return
+   "whatWeConclude": string,     // 2-3 sentences, your interpretation, hedged appropriately given this is mock data and a small/simple test
+   "risksAndCaveats": string[],  // 3-5 short bullet points: things that could make this misleading (e.g. look-ahead bias, overfitting, small sample, real transaction costs/slippage, synthetic data not real history, regime dependence)
+   "nextQuestions": string[]     // 2-3 short follow-up questions worth investigating next
+diff --git a/components/EquityCurve.tsx b/components/EquityCurve.tsx
+new file mode 100644
+index 0000000..ad2a7ee
+--- /dev/null
++++ b/components/EquityCurve.tsx
+@@ -0,0 +1,63 @@
++"use client";
++
++// A small hand-rolled SVG line chart — deliberately not a charting library
++// dependency, since this is one simple polyline styled to match the app's
++// existing ink/teal/amber palette rather than a general-purpose chart.
++
++export default function EquityCurve({ points }: { points: number[] }) {
++  if (points.length < 2) {
++    return (
++      <p className="text-paper-300/50 text-sm font-mono">
++        Not enough trades to plot an equity curve.
++      </p>
++    );
++  }
++
++  const width = 640;
++  const height = 180;
++  const paddingX = 8;
++  const paddingY = 16;
++
++  const min = Math.min(0, ...points);
++  const max = Math.max(0, ...points);
++  const range = max - min || 1;
++
++  const toX = (i: number) =>
++    paddingX + (i / (points.length - 1)) * (width - paddingX * 2);
++  const toY = (v: number) =>
++    height - paddingY - ((v - min) / range) * (height - paddingY * 2);
++
++  const path = points
++    .map((v, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(1)} ${toY(v).toFixed(1)}`)
++    .join(" ");
++
++  const zeroY = toY(0);
++  const finalValue = points[points.length - 1];
++  const finalColor = finalValue >= 0 ? "#5AA69B" : "#C1694B";
++
++  // Fill area under the curve down to the zero line, same color family as the line.
++  const areaPath = `${path} L ${toX(points.length - 1).toFixed(1)} ${zeroY.toFixed(1)} L ${toX(0).toFixed(1)} ${zeroY.toFixed(1)} Z`;
++
++  return (
++    <svg
++      viewBox={`0 0 ${width} ${height}`}
++      className="w-full h-auto"
++      preserveAspectRatio="none"
++      role="img"
++      aria-label="Cumulative strategy return across trades"
++    >
++      {/* zero baseline */}
++      <line
++        x1={paddingX}
++        y1={zeroY}
++        x2={width - paddingX}
++        y2={zeroY}
++        stroke="#2A4139"
++        strokeWidth={1}
++        strokeDasharray="3 3"
++      />
++      <path d={areaPath} fill={finalColor} fillOpacity={0.08} stroke="none" />
++      <path d={path} fill="none" stroke={finalColor} strokeWidth={1.75} />
++    </svg>
++  );
++}
+diff --git a/components/ResultsPanel.tsx b/components/ResultsPanel.tsx
+index a9095e3..23b77a0 100644
+--- a/components/ResultsPanel.tsx
++++ b/components/ResultsPanel.tsx
+@@ -1,6 +1,7 @@
+ "use client";
+ 
+ import { Experiment, BacktestSummary } from "@/lib/experimentSchema";
++import EquityCurve from "./EquityCurve";
+ 
+ export interface Explanation {
+   whatDataShows: string;
+@@ -70,6 +71,42 @@ export default function ResultsPanel({
+         />
+       </div>
+ 
++      <div className="mb-8">
++        <div className="flex items-center justify-between mb-2">
++          <span className="font-mono text-[10px] uppercase tracking-wide text-paper-300/60">
++            Cumulative strategy return (net of costs)
++          </span>
++          <span
++            className={`font-mono text-xs ${
++              summary.equityCurvePct[summary.equityCurvePct.length - 1] >= 0
++                ? "text-teal-400"
++                : "text-rust-400"
++            }`}
++          >
++            {summary.equityCurvePct[summary.equityCurvePct.length - 1] >= 0 ? "+" : ""}
++            {summary.equityCurvePct[summary.equityCurvePct.length - 1].toFixed(1)}%
++          </span>
++        </div>
++        <div className="border border-ink-600 rounded-md px-3 py-3 bg-ink-800/40">
++          <EquityCurve points={summary.equityCurvePct} />
++        </div>
++        <div className="grid grid-cols-3 gap-3 mt-3">
++          <Stat
++            label="Max drawdown"
++            value={`${summary.maxDrawdownPct.toFixed(1)}%`}
++            accent="text-rust-400"
++          />
++          <Stat
++            label="Risk-adj. return ratio*"
++            value={summary.sharpeRatioSimplified.toFixed(2)}
++          />
++          <Stat label="Trades in curve" value={String(summary.numTrades)} />
++        </div>
++        <p className="text-paper-300/40 text-[11px] font-mono mt-2">
++          *simplified: mean ÷ stdev of net per-trade returns — not an annualized Sharpe ratio.
++        </p>
++      </div>
++
+       <div className="rule mb-8" />
+ 
+       <div className="entry-index mb-3">04 — LEARN</div>
+diff --git a/lib/backtest.ts b/lib/backtest.ts
+index 4099fb4..d437858 100644
+--- a/lib/backtest.ts
++++ b/lib/backtest.ts
+@@ -80,6 +80,45 @@ export function runBacktest(experiment: Experiment): BacktestSummary {
+   const bestReturnPct = returns.length ? Math.max(...returns) : 0;
+   const worstReturnPct = returns.length ? Math.min(...returns) : 0;
+ 
++  // Net-of-cost return on each individual trade, in trade order — this is
++  // the series everything below (equity curve, drawdown, Sharpe) is built on,
++  // since it's the return an investor would have actually captured.
++  const roundTripCostPct = costFraction * 100 * 2;
++  const netReturns = returns.map((r) => r - roundTripCostPct);
++
++  // Equity curve: compound each trade's net return onto a running index
++  // starting at 0% ("no strategy applied yet"). trades[i] realized => index
++  // moves from equityCurvePct[i] to equityCurvePct[i+1].
++  const equityCurvePct: number[] = [0];
++  let equityMultiplier = 1;
++  for (const r of netReturns) {
++    equityMultiplier *= 1 + r / 100;
++    equityCurvePct.push((equityMultiplier - 1) * 100);
++  }
++
++  // Max drawdown: largest peak-to-trough decline along that equity curve.
++  let peak = equityCurvePct[0];
++  let maxDrawdownPct = 0;
++  for (const point of equityCurvePct) {
++    if (point > peak) peak = point;
++    // Drawdown measured against (1 + peak/100) so it's a proper percentage
++    // decline in equity value, not just a difference in index points.
++    const drawdown = ((1 + point / 100) - (1 + peak / 100)) / (1 + peak / 100) * 100;
++    if (drawdown < maxDrawdownPct) maxDrawdownPct = drawdown;
++  }
++
++  // Simplified Sharpe-like ratio: mean / stdev of net per-trade returns.
++  // Not annualized (that requires a fixed period length and a risk-free
++  // rate) — deliberately labeled "simplified" wherever it's shown.
++  let sharpeRatioSimplified = 0;
++  if (netReturns.length > 1) {
++    const mean = netReturns.reduce((a, b) => a + b, 0) / netReturns.length;
++    const variance =
++      netReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / netReturns.length;
++    const stdev = Math.sqrt(variance);
++    sharpeRatioSimplified = stdev > 0 ? mean / stdev : 0;
++  }
++
+   return {
+     trades,
+     numTrades,
+@@ -89,5 +128,8 @@ export function runBacktest(experiment: Experiment): BacktestSummary {
+     baselineAvgReturnPct,
+     bestReturnPct,
+     worstReturnPct,
++    equityCurvePct,
++    maxDrawdownPct,
++    sharpeRatioSimplified,
+   };
+ }
+diff --git a/lib/experimentSchema.ts b/lib/experimentSchema.ts
+index 0d94dde..312c0f9 100644
+--- a/lib/experimentSchema.ts
++++ b/lib/experimentSchema.ts
+@@ -64,4 +64,11 @@ export interface BacktestSummary {
+   baselineAvgReturnPct: number;
+   bestReturnPct: number;
+   worstReturnPct: number;
++  /** Cumulative return after each trade, compounded, net of costs. Starts at 0. */
++  equityCurvePct: number[];
++  maxDrawdownPct: number;
++  /** Simplified, non-annualized Sharpe-like ratio: mean(net trade return) / stdev(net trade return).
++   *  Not a textbook annualized Sharpe (that needs a risk-free rate and a fixed period length) —
++   *  labeled "simplified" in the UI for exactly that reason. */
++  sharpeRatioSimplified: number;
+ }

@@ -80,6 +80,45 @@ export function runBacktest(experiment: Experiment): BacktestSummary {
   const bestReturnPct = returns.length ? Math.max(...returns) : 0;
   const worstReturnPct = returns.length ? Math.min(...returns) : 0;
 
+  // Net-of-cost return on each individual trade, in trade order — this is
+  // the series everything below (equity curve, drawdown, Sharpe) is built on,
+  // since it's the return an investor would have actually captured.
+  const roundTripCostPct = costFraction * 100 * 2;
+  const netReturns = returns.map((r) => r - roundTripCostPct);
+
+  // Equity curve: compound each trade's net return onto a running index
+  // starting at 0% ("no strategy applied yet"). trades[i] realized => index
+  // moves from equityCurvePct[i] to equityCurvePct[i+1].
+  const equityCurvePct: number[] = [0];
+  let equityMultiplier = 1;
+  for (const r of netReturns) {
+    equityMultiplier *= 1 + r / 100;
+    equityCurvePct.push((equityMultiplier - 1) * 100);
+  }
+
+  // Max drawdown: largest peak-to-trough decline along that equity curve.
+  let peak = equityCurvePct[0];
+  let maxDrawdownPct = 0;
+  for (const point of equityCurvePct) {
+    if (point > peak) peak = point;
+    // Drawdown measured against (1 + peak/100) so it's a proper percentage
+    // decline in equity value, not just a difference in index points.
+    const drawdown = ((1 + point / 100) - (1 + peak / 100)) / (1 + peak / 100) * 100;
+    if (drawdown < maxDrawdownPct) maxDrawdownPct = drawdown;
+  }
+
+  // Simplified Sharpe-like ratio: mean / stdev of net per-trade returns.
+  // Not annualized (that requires a fixed period length and a risk-free
+  // rate) — deliberately labeled "simplified" wherever it's shown.
+  let sharpeRatioSimplified = 0;
+  if (netReturns.length > 1) {
+    const mean = netReturns.reduce((a, b) => a + b, 0) / netReturns.length;
+    const variance =
+      netReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / netReturns.length;
+    const stdev = Math.sqrt(variance);
+    sharpeRatioSimplified = stdev > 0 ? mean / stdev : 0;
+  }
+
   return {
     trades,
     numTrades,
@@ -89,5 +128,8 @@ export function runBacktest(experiment: Experiment): BacktestSummary {
     baselineAvgReturnPct,
     bestReturnPct,
     worstReturnPct,
+    equityCurvePct,
+    maxDrawdownPct,
+    sharpeRatioSimplified,
   };
 }
