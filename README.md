@@ -10,7 +10,7 @@ user sees the whole loop end to end: **Ask → Clarify → Define → Test → L
 
 1. **Ask** — user types a question like *"Does buying NIFTY after a 1% fall
    work better during high-volatility periods?"*
-2. **Clarify & Define** — Claude extracts a structured experiment (instrument,
+2. **Clarify & Define** — Gemini extracts a structured experiment (instrument,
    entry, filter, exit, holding period, test period, cost assumption). Every
    field is tagged **confirmed** (stated by the user) or **assumed** (the
    model's best-guess default, shown with its reasoning) so nothing important
@@ -62,7 +62,7 @@ choice: the assignment specifically asks for AI used *meaningfully*, not a
 
 ## Technologies used
 
-- **Next.js 14 (App Router) + TypeScript** — API routes double as a thin
+- **Next.js 16 (App Router) + TypeScript** — API routes double as a thin
   backend, keeping the Gemini API key server-side only.
 - **Tailwind CSS** — a small custom token set (see `tailwind.config.ts`) for
   a "research ledger" visual identity rather than default component-kit
@@ -71,6 +71,11 @@ choice: the assignment specifically asks for AI used *meaningfully*, not a
   [Google AI Studio](https://aistudio.google.com/apikey)) — the two AI calls
   above, using `responseMimeType: "application/json"` for reliable
   structured output.
+- **Zod** — runtime validation of both AI responses. A system prompt telling
+  the model what shape to return is not a contract; `lib/experimentValidation.ts`
+  is the actual enforcement point, rejecting malformed or out-of-range
+  output (e.g. a non-numeric holding period) before it ever reaches the UI
+  or the backtest engine.
 - **Browser `localStorage`** — lightweight persistence for experiment
   history; no database needed for a prototype of this scope.
 
@@ -91,6 +96,10 @@ choice: the assignment specifically asks for AI used *meaningfully*, not a
 - **Data vs. interpretation, kept structurally separate.** "What the data
   shows" and "What we conclude" are two different fields in the AI's JSON
   response, not one paragraph — so the UI can never accidentally blend them.
+- **The backtest result is saved independent of the AI explanation.**
+  History is persisted as soon as the (deterministic, local) backtest
+  completes — not gated behind the second Gemini call succeeding — so a
+  transient AI outage doesn't lose a result that already finished computing.
 - **No database.** `localStorage` is enough to demonstrate "remember what it
   learned" without adding infrastructure that isn't the point of this
   assignment.
@@ -107,12 +116,24 @@ Open http://localhost:3000.
 
 ## What I'd improve with more time
 
+- **Automated tests** around the backtest engine (threshold behavior, holding
+  period, volatility filter, cost calculation, zero-trade edge cases) and the
+  Zod schemas. None exist yet — for a 3–4 hour prototype I prioritized the
+  end-to-end workflow over test coverage, but this is the most defensible
+  next investment.
+- **Statistical rigor in the results.** Right now "53% win rate over 234
+  trades" is presented without a confidence interval — a bootstrap CI or at
+  minimum a sample-size caveat would make the difference between 60% on 10
+  trades and 60% on 1,000 trades explicit rather than implied.
+- **Richer backtest statistics** — Sharpe ratio, max drawdown, an equity
+  curve — instead of just avg return / win rate / best-worst. Deliberately
+  kept minimal here since the assignment is scoped around the research
+  *workflow*, not backtest sophistication, but this is the natural next
+  layer.
 - Replace the synthetic data generator with a real historical dataset (e.g.
   a public NIFTY daily-close CSV) behind the same backtest interface —
   the engine is already written against a generic `DailyBar[]`, so this is
   a data-layer swap, not a rewrite.
-- Add confidence/statistical-significance framing (sample size, p-value-ish
-  caveat) to the explanation step instead of just a caveat bullet.
 - Let the user ask a follow-up question against an existing result ("what if
   holding period were 10 days instead?") without re-typing the whole
   question — re-run the same experiment object with one field changed.

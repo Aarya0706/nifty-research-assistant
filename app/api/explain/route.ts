@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ExplanationSchema } from "@/lib/experimentValidation";
 
 // Second, distinct AI use in this prototype: turning raw backtest numbers
 // into plain-language interpretation for a non-quant user — while keeping
@@ -68,7 +69,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json(parsed);
+    const validated = ExplanationSchema.safeParse(parsed);
+    if (!validated.success) {
+      return NextResponse.json(
+        {
+          error: "The model's explanation didn't match the expected shape.",
+          issues: validated.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`),
+        },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json(validated.data);
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Unknown error" }, { status: 500 });
   }

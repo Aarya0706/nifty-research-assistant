@@ -17,6 +17,21 @@ const NUMERIC_FIELDS = new Set([
   "costAssumptionBps",
 ]);
 
+// Keeps hand-edited numbers within ranges the backtest engine can sensibly
+// act on — matches the bounds enforced server-side in experimentValidation.ts.
+const NUMERIC_BOUNDS: Record<string, { min: number; max: number; step?: number }> = {
+  entryThresholdPct: { min: -50, max: 50, step: 0.1 },
+  holdingPeriodDays: { min: 1, max: 252, step: 1 },
+  testPeriodYears: { min: 0.5, max: 30, step: 0.5 },
+  costAssumptionBps: { min: 0, max: 500, step: 1 },
+};
+
+function clamp(key: string, n: number): number {
+  const bounds = NUMERIC_BOUNDS[key];
+  if (!bounds || Number.isNaN(n)) return n;
+  return Math.min(bounds.max, Math.max(bounds.min, n));
+}
+
 const SELECT_FIELDS: Record<string, string[]> = {
   filterType: ["none", "high_volatility", "low_volatility", "other"],
 };
@@ -28,9 +43,10 @@ export default function ClarifyDefine({ question, experiment, onConfirm, onBack 
   const unconfirmedCount = fieldKeys.filter((k) => !(exp as any)[k].confirmed).length;
 
   function updateField(key: string, value: any) {
+    const finalValue = NUMERIC_FIELDS.has(key) ? clamp(key, value) : value;
     setExp((prev) => ({
       ...prev,
-      [key]: { ...(prev as any)[key], value, confirmed: true },
+      [key]: { ...(prev as any)[key], value: finalValue, confirmed: true },
     }));
   }
 
@@ -119,6 +135,9 @@ export default function ClarifyDefine({ question, experiment, onConfirm, onBack 
                 <input
                   type={NUMERIC_FIELDS.has(key) ? "number" : "text"}
                   value={field.value}
+                  min={NUMERIC_BOUNDS[key]?.min}
+                  max={NUMERIC_BOUNDS[key]?.max}
+                  step={NUMERIC_BOUNDS[key]?.step}
                   onChange={(e) =>
                     updateField(
                       key,
@@ -127,6 +146,12 @@ export default function ClarifyDefine({ question, experiment, onConfirm, onBack 
                   }
                   className="w-full bg-transparent text-paper-100 font-mono text-sm focus:outline-none"
                 />
+              )}
+
+              {NUMERIC_FIELDS.has(key) && NUMERIC_BOUNDS[key] && (
+                <p className="text-paper-300/40 text-[11px] font-mono mt-1">
+                  allowed range: {NUMERIC_BOUNDS[key].min} to {NUMERIC_BOUNDS[key].max}
+                </p>
               )}
 
               {!confirmed && field.reason && (
@@ -159,7 +184,18 @@ export default function ClarifyDefine({ question, experiment, onConfirm, onBack 
           ← back
         </button>
         <button
-          onClick={() => onConfirm(exp)}
+          onClick={() => {
+            // Belt-and-suspenders: re-clamp every numeric field right before
+            // running the backtest, in case a value was left mid-edit.
+            const clamped: Experiment = { ...exp };
+            for (const key of Object.keys(NUMERIC_BOUNDS)) {
+              (clamped as any)[key] = {
+                ...(exp as any)[key],
+                value: clamp(key, (exp as any)[key].value),
+              };
+            }
+            onConfirm(clamped);
+          }}
           className="bg-amber-400 text-ink-950 font-medium text-sm px-5 py-2.5 rounded-md hover:bg-amber-500 transition-colors"
         >
           Run experiment on simulated data

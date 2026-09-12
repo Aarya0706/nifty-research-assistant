@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ExperimentSchema } from "@/lib/experimentValidation";
 
 // This is the "Understand the question -> Structure it as an experiment ->
 // identify missing information" step. It's a single, tightly-scoped LLM call
@@ -93,7 +94,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json(parsed);
+    // Runtime enforcement — a system prompt is not a contract. Reject anything
+    // that doesn't actually match the Experiment shape (wrong types, missing
+    // fields, out-of-range numbers) instead of trusting a bare JSON.parse cast.
+    const validated = ExperimentSchema.safeParse(parsed);
+    if (!validated.success) {
+      return NextResponse.json(
+        {
+          error: "The model's response didn't match the expected experiment shape.",
+          issues: validated.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`),
+        },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json(validated.data);
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Unknown error" }, { status: 500 });
   }

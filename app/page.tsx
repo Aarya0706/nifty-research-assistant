@@ -82,8 +82,23 @@ export default function Home() {
     setSummary(result);
     setStep("results");
     setExplanation(null);
-    setLoadingExplain(true);
 
+    // Save the core result immediately — it doesn't depend on the AI
+    // explanation succeeding. If that call fails or the model is briefly
+    // overloaded, the backtest result (the thing that actually took compute
+    // to produce) still gets remembered.
+    const runId = crypto.randomUUID();
+    const baseRun: StoredRun = {
+      id: runId,
+      question,
+      experiment: exp,
+      summary: result,
+      explanation: null,
+      savedAt: Date.now(),
+    };
+    persistHistory([baseRun, ...history].slice(0, 20));
+
+    setLoadingExplain(true);
     try {
       const res = await fetch("/api/explain", {
         method: "POST",
@@ -93,18 +108,11 @@ export default function Home() {
       const data = await res.json();
       if (res.ok) {
         setExplanation(data as Explanation);
-        const run: StoredRun = {
-          id: crypto.randomUUID(),
-          question,
-          experiment: exp,
-          summary: result,
-          explanation: data as Explanation,
-          savedAt: Date.now(),
-        };
-        persistHistory([run, ...history].slice(0, 20));
+        const withExplanation: StoredRun = { ...baseRun, explanation: data as Explanation };
+        persistHistory([withExplanation, ...history].slice(0, 20));
       }
     } catch {
-      /* explanation is a nice-to-have; results still stand without it */
+      /* explanation is a nice-to-have; the saved result above still stands */
     } finally {
       setLoadingExplain(false);
     }
@@ -132,9 +140,14 @@ export default function Home() {
   return (
     <main className="min-h-screen px-6 py-14 sm:py-20">
       <div className="max-w-notebook mx-auto">
-        <p className="font-mono text-xs text-paper-300/50 tracking-wide mb-10">
-          LEDGER · an AI trading research assistant (prototype)
-        </p>
+        <div className="flex items-baseline gap-3 mb-10">
+          <span className="font-serif text-2xl sm:text-3xl tracking-wide text-amber-400">
+            Ledger
+          </span>
+          <span className="font-mono text-[11px] text-paper-300/50 tracking-wide">
+            an AI trading research assistant (prototype)
+          </span>
+        </div>
 
         {step === "ask" && (
           <QuestionAsk onSubmit={handleAsk} loading={loadingParse} error={parseError} />
