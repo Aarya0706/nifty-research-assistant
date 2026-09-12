@@ -15,8 +15,6 @@
 |---|---|---|
 | ![Ask step](./docs/screenshot-ask.png) | ![Clarify step](./docs/screenshot-clarify.png) | ![Results step](./docs/screenshot-results.png) |
 
-*(Drop your own screenshots into a `/docs` folder in the repo with these filenames, or update the paths above — GitHub will render them automatically once pushed.)*
-
 ---
 
 ## Overview
